@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORBITAL — 3D 太阳系探索平台（验证版）</title>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+  :root { --bg:#020409; --panel:#0a1220; --panel2:#0e1a30; --text:#eaf2ff; --muted:#93a5bd; --line:#1e3355; --accent:#6ba8ff; --gold:#d9b36a; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  #app { display:grid; grid-template-rows:56px 1fr 96px; grid-template-columns:250px 1fr 300px; height:100vh; }
+  header { grid-column:1/-1; display:flex; gap:12px; align-items:center; padding:0 14px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; white-space:nowrap; }
+  header h1 span { color:var(--muted); font-size:12px; font-weight:400; margin-left:8px; }
+  #search { flex:1; max-width:420px; background:#0b1626; border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:8px; }
+  #search-msg { color:var(--muted); font-size:12px; }
+  #mode-badge { font-size:12px; color:var(--gold); }
+  .settings { display:flex; gap:12px; font-size:12px; color:var(--muted); margin-left:auto; align-items:center; }
+  .settings select { background:#0b1626; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px; }
+  aside { overflow:auto; background:var(--panel); padding:12px; }
+  #nav { border-right:1px solid var(--line); }
+  #info { border-left:1px solid var(--line); }
+  .nav-group { color:var(--gold); font-size:12px; letter-spacing:1px; margin:14px 0 6px; }
+  .nav-item { display:block; width:100%; text-align:left; background:transparent; border:0; color:var(--text); padding:7px 8px; border-radius:6px; cursor:pointer; }
+  .nav-item:hover, .nav-item.active { background:var(--panel2); }
+  #scene { position:relative; background:#020409; min-height:300px; }
+  #scene canvas { display:block; width:100%; height:100%; }
+  footer { grid-column:1/-1; background:var(--panel); border-top:1px solid var(--line); padding:10px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 12px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  #sim-date { font-variant-numeric:tabular-nums; }
+  .muted { color:var(--muted); font-size:12px; line-height:1.6; }
+  #info h2 { margin:0 0 10px; font-size:19px; }
+  #info .en { color:var(--muted); font-size:13px; font-weight:400; }
+  #info dl { margin:0; font-size:13px; }
+  #info dt { color:var(--muted); margin-top:8px; }
+  #info dd { margin:2px 0 0; }
+  #events { font-size:12px; line-height:1.7; }
+  @media (max-width: 900px) {
+    #app { grid-template-columns:1fr; grid-template-rows:56px 1fr auto auto 96px; height:auto; min-height:100vh; }
+    #nav, #info { max-height:220px; }
+    header { flex-wrap:wrap; height:auto; padding:10px; }
+    .settings { margin-left:0; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>ORBITAL <span>3D 太阳系探索 · 验证版</span></h1>
+    <input id="search" placeholder="搜索天体：中文 / 英文 / 编号，回车定位">
+    <span id="search-msg"></span>
+    <span id="mode-badge">视觉探索 · 艺术放大，与物理数据分离</span>
+    <div class="settings">
+      <label>比例模式
+        <select id="scale-mode">
+          <option value="visual">视觉探索</option>
+          <option value="scientific">科学比例</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="toggle-labels" checked> 标签</label>
+      <label><input type="checkbox" id="toggle-orbits" checked> 轨道线</label>
+      <label><input type="checkbox" id="toggle-clouds" checked> 地球云层</label>
+    </div>
+  </header>
+  <aside id="nav" aria-label="天体导航"></aside>
+  <main id="scene" aria-label="3D 场景"></main>
+  <aside id="info" aria-label="天体信息"></aside>
+  <footer>
+    <button id="play-btn">⏸ 暂停</button>
+    <button id="reverse-btn">⇄ 倒退</button>
+    <button id="slower-btn">− 减速</button>
+    <button id="faster-btn">+ 加速</button>
+    <button id="now-btn">回到现在</button>
+    <label>指定日期 <input type="date" id="date-input"></label>
+    <span id="sim-date"></span>
+    <span id="sim-speed" class="muted"></span>
+    <button id="overview-btn">返回全景</button>
+    <div id="events"></div>
+  </footer>
+</div>
+<p class="muted" style="padding:6px 14px;">位置为开普勒近似模型计算，非完整 Horizons DE441 星历；表面纹理为程序化生成，非实测影像。科学比例模式下天体按真实 AU / 半径显示，看起来很小是正确的。</p>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
