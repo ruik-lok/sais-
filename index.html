@@ -14,11 +14,16 @@
   :root { --bg:#020409; --panel:#0a1220; --panel2:#0e1a30; --text:#eaf2ff; --muted:#93a5bd; --line:#1e3355; --accent:#6ba8ff; --gold:#d9b36a; }
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  #app { display:grid; grid-template-rows:56px 1fr 96px; grid-template-columns:250px 1fr 300px; height:100vh; }
+  #app { display:grid; grid-template-rows:56px 1fr auto; grid-template-columns:250px 1fr 300px; height:100vh; }
   header { grid-column:1/-1; display:flex; gap:12px; align-items:center; padding:0 14px; background:var(--panel); border-bottom:1px solid var(--line); }
   header h1 { font-size:17px; margin:0; white-space:nowrap; }
   header h1 span { color:var(--muted); font-size:12px; font-weight:400; margin-left:8px; }
-  #search { flex:1; max-width:420px; background:#0b1626; border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:8px; }
+  .search-wrap { position:relative; flex:1; max-width:420px; }
+  #search { width:100%; background:#0b1626; border:1px solid var(--line); color:var(--text); padding:10px 12px; border-radius:8px; min-height:44px; }
+  #search-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:20; background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:4px; max-height:280px; overflow:auto; }
+  #search-dropdown[hidden] { display:none; }
+  .search-item { display:block; width:100%; text-align:left; min-height:44px; }
+  .search-item.highlighted { border-color:var(--accent); background:#16294d; }
   #search-msg { color:var(--muted); font-size:12px; }
   #mode-badge { font-size:12px; color:var(--gold); }
   .settings { display:flex; gap:12px; font-size:12px; color:var(--muted); margin-left:auto; align-items:center; }
@@ -27,13 +32,29 @@
   #nav { border-right:1px solid var(--line); }
   #info { border-left:1px solid var(--line); }
   .nav-group { color:var(--gold); font-size:12px; letter-spacing:1px; margin:14px 0 6px; }
-  .nav-item { display:block; width:100%; text-align:left; background:transparent; border:0; color:var(--text); padding:7px 8px; border-radius:6px; cursor:pointer; }
+  .nav-item { display:block; width:100%; text-align:left; background:transparent; border:0; color:var(--text); padding:12px 10px; border-radius:6px; cursor:pointer; min-height:44px; }
   .nav-item:hover, .nav-item.active { background:var(--panel2); }
   #scene { position:relative; background:#020409; min-height:300px; }
   #scene canvas { display:block; width:100%; height:100%; }
+  #range-banner { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:5; background:#3a2700; border:1px solid var(--gold); color:#ffe9b0; font-size:12px; padding:8px 12px; border-radius:8px; max-width:92%; text-align:center; }
+  #range-banner[hidden] { display:none; }
+  /* RENDERING: CDN fallback notice (hidden until a load failure shows it). */
+  #cdn-fallback { position:absolute; top:12px; left:12px; right:12px; z-index:5; background:#3a1508; border:1px solid #a86a3a; border-radius:8px; padding:12px 14px; font-size:13px; line-height:1.7; }
+  #cdn-fallback strong { color:#ffb347; }
   footer { grid-column:1/-1; background:var(--panel); border-top:1px solid var(--line); padding:10px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 12px; cursor:pointer; }
+  button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:12px 14px; cursor:pointer; min-height:44px; }
   button:hover { border-color:var(--accent); }
+  button[aria-pressed="true"] { border-color:var(--accent); background:#16294d; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  #scene canvas:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .breadcrumb { font-size:12px; color:var(--muted); margin-bottom:8px; }
+  .crumb, .moon-link { background:transparent; border:0; color:var(--accent); padding:0 2px; min-height:0; text-decoration:underline; cursor:pointer; }
+  .panel-actions { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .panel-actions button { padding:10px 12px; }
+  .range-warning { background:#3a2700; border:1px solid var(--gold); color:#ffe9b0; padding:8px 10px; border-radius:8px; font-size:13px; }
+  #speed-slider { accent-color:var(--accent); }
+  .speed-presets { display:flex; gap:6px; flex-wrap:wrap; }
+  .speed-presets button { padding:10px 12px; }
   #sim-date { font-variant-numeric:tabular-nums; }
   .muted { color:var(--muted); font-size:12px; line-height:1.6; }
   #info h2 { margin:0 0 10px; font-size:19px; }
@@ -43,7 +64,7 @@
   #info dd { margin:2px 0 0; }
   #events { font-size:12px; line-height:1.7; }
   @media (max-width: 900px) {
-    #app { grid-template-columns:1fr; grid-template-rows:56px 1fr auto auto 96px; height:auto; min-height:100vh; }
+    #app { grid-template-columns:1fr; grid-template-rows:56px 1fr auto auto auto; height:auto; min-height:100vh; }
     #nav, #info { max-height:220px; }
     header { flex-wrap:wrap; height:auto; padding:10px; }
     .settings { margin-left:0; }
@@ -54,9 +75,13 @@
 <div id="app">
   <header>
     <h1>ORBITAL <span>3D 太阳系探索 · 验证版</span></h1>
-    <input id="search" placeholder="搜索天体：中文 / 英文 / 编号，回车定位">
-    <span id="search-msg"></span>
+    <div class="search-wrap">
+      <input id="search" role="combobox" aria-expanded="false" aria-controls="search-dropdown" aria-autocomplete="list" placeholder="搜索天体：中文名 / 英文名 / id">
+      <div id="search-dropdown" role="listbox" hidden></div>
+    </div>
+    <span id="search-msg" aria-live="polite"></span>
     <span id="mode-badge">视觉探索 · 艺术放大，与物理数据分离</span>
+    <button id="fullscreen-btn" type="button" aria-pressed="false">⛶ 全屏</button>
     <div class="settings">
       <label>比例模式
         <select id="scale-mode">
@@ -70,22 +95,59 @@
     </div>
   </header>
   <aside id="nav" aria-label="天体导航"></aside>
-  <main id="scene" aria-label="3D 场景"></main>
+  <main id="scene" aria-label="3D 场景"><div id="range-banner" role="alert" hidden></div>
+    <!-- RENDERING: CDN fallback notice. Shown only when Three.js fails to load from CDN; without it the page would be silently blank. -->
+    <div id="cdn-fallback" hidden><strong>3D 场景未能加载：</strong>Three.js 未能从 CDN（cdn.jsdelivr.net，three@0.160.0）加载，请检查网络连接后刷新页面；离线环境下本页无法显示 3D 场景。</div>
+  </main>
   <aside id="info" aria-label="天体信息"></aside>
   <footer>
-    <button id="play-btn">⏸ 暂停</button>
-    <button id="reverse-btn">⇄ 倒退</button>
-    <button id="slower-btn">− 减速</button>
-    <button id="faster-btn">+ 加速</button>
-    <button id="now-btn">回到现在</button>
+    <button id="play-btn" type="button" aria-pressed="true" aria-label="播放或暂停">⏸ 暂停</button>
+    <button id="reverse-btn" type="button" aria-pressed="false" aria-label="倒退播放">⇄ 倒退</button>
+    <button id="slower-btn" type="button">− 减速</button>
+    <button id="faster-btn" type="button">+ 加速</button>
+    <label>速度 <input type="range" id="speed-slider" min="0" max="6" step="1" value="2" aria-label="模拟速度（对数档位）"></label>
+    <span class="speed-presets" role="group" aria-label="常用速度预设">
+      <button type="button" class="speed-preset" data-speed="0.1">0.1 天/秒</button>
+      <button type="button" class="speed-preset" data-speed="1">1 天/秒</button>
+      <button type="button" class="speed-preset" data-speed="10">10 天/秒</button>
+      <button type="button" class="speed-preset" data-speed="100">100 天/秒</button>
+    </span>
+    <button id="now-btn" type="button">回到现在</button>
     <label>指定日期 <input type="date" id="date-input"></label>
     <span id="sim-date"></span>
     <span id="sim-speed" class="muted"></span>
-    <button id="overview-btn">返回全景</button>
+    <button id="overview-btn" type="button">返回全景</button>
     <div id="events"></div>
   </footer>
 </div>
+<p class="muted" style="padding:6px 14px;">位置为开普勒近似模型计算，非完整 Horizons DE441 星历；表面纹理为程序化生成，非实测影像。科学比例模式下天体按真实 AU / 半径显示，看起来很小是正确的。操作：拖拽旋转，滚轮缩放，点击天体聚焦，点击空白处取消选中。快捷键：Esc 回总览 · Space 播放/暂停 · ←/→ 调速（在输入框、按钮或下拉框聚焦时不触发）。</p>
 <p class="muted" style="padding:6px 14px;">位置为开普勒近似模型计算，非完整 Horizons DE441 星历；表面纹理为程序化生成，非实测影像。科学比例模式下天体按真实 AU / 半径显示，看起来很小是正确的。</p>
+<script>
+  // RENDERING: non-module fallback timer (covers CDN failure and browsers
+  // without importmap/module support): if no canvas appears, show the banner.
+  setTimeout(function () {
+    if (!document.querySelector("#scene canvas")) {
+      var el = document.getElementById("cdn-fallback");
+      if (el) el.hidden = false;
+    }
+  }, 15000);
+  document.addEventListener("DOMContentLoaded", function () {
+    var scene = document.getElementById("scene");
+    if (scene && window.MutationObserver) {
+      new MutationObserver(function () {
+        if (scene.querySelector("canvas")) { var el = document.getElementById("cdn-fallback"); if (el) el.hidden = true; }
+      }).observe(scene, { childList: true });
+    }
+  });
+</script>
+<script type="module">
+  // RENDERING: CDN probe — if three fails to import, main.js never runs;
+  // show the banner instead of leaving a silently blank page.
+  import("three").then(function () {}).catch(function () {
+    var el = document.getElementById("cdn-fallback");
+    if (el) el.hidden = false;
+  });
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
