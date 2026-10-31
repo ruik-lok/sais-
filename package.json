@@ -1,1 +1,24 @@
-{"name":"orbital-validation","private":true,"type":"module","version":"0.1.0"}
+{
+  "dependencies": {
+    "three": "0.160.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "name": "orbital-validation",
+  "private": true,
+  "scripts": {
+    "test": "node test_kepler.mjs && node test_ui.mjs && node test_redesign.mjs && node test_panel_science.mjs && node test_moons.mjs && node test_render.mjs && node test_pure.mjs && node test_data.mjs && node test_render_pure.mjs",
+    "test_kepler": "node test_kepler.mjs",
+    "test_redesign": "node test_redesign.mjs",
+    "test_ui": "node test_ui.mjs",
+    "test_panel_science": "node test_panel_science.mjs",
+    "test_moons": "node test_moons.mjs",
+    "test_render": "node test_render.mjs",
+    "test_pure": "node test_pure.mjs",
+    "test_data": "node test_data.mjs",
+    "test_render_pure": "node test_render_pure.mjs"
+  },
+  "type": "module",
+  "version": "0.1.0"
+}

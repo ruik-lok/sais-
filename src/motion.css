@@ -1,0 +1,160 @@
+/* ORBITAL motion (feature/visual-redesign, motion agent ownership).
+ *
+ * Source: DESIGN_SYSTEM.md section 5. This file owns ALL transitions
+ * and keyframe motion. Other files must not add their own durations:
+ * tokens.css deliberately declares no transitions, and mobile.css
+ * (loaded after this file) repeats the same 260ms / 150ms values for
+ * its drawer / sheet / scrim / floating-controller surfaces.
+ *
+ * Curves and durations (exact, do not drift):
+ *   buttons / switches / segmented / nav + search items : 150ms,
+ *     cubic-bezier(0.4, 0, 0.2, 1)
+ *   panel expand / collapse (transform / opacity surfaces) : 260ms,
+ *     cubic-bezier(0.32, 0.72, 0, 1)
+ *   search dropdown : 180ms, cubic-bezier(0.32, 0.72, 0, 1)
+ *   camera focus tween : 1200ms, owned by render.js (NOT changed here;
+ *     render.js also handles reduced-motion for the camera — see the
+ *     prefersReducedMotion() helper next to _updateGovernor).
+ *
+ * Transform / opacity ONLY. No transition or animation in this file
+ * touches height, width, margin, padding, top, or left.
+ *
+ * Honest limitation, desktop panels / dropdown (read before claiming
+ * an animation exists): the current markup collapses desktop side
+ * panels with width (282px / 332px -> 40px) plus display:none on the
+ * inner panel, and shows the search dropdown by removing [hidden]
+ * (display:none -> block). A width snap and a display toggle cannot
+ * be animated with transform / opacity, so this file deliberately
+ * does NOT transition #nav-wrap / #info-wrap width and does NOT
+ * pretend the desktop width collapse animates. What this file does
+ * give those surfaces is the 260ms / 180ms transform+opacity
+ * transition for every property that CAN animate (panel opacity /
+ * transform, drawer / sheet / scrim on mobile via mobile.css, and the
+ * dropdown entrance keyframe below, which does run when the dropdown
+ * leaves display:none). Turning the desktop width collapse into a
+ * real sliding animation would need a structural change (e.g. a
+ * transform-based panel) by the desktop agent; it is NOT faked here.
+ * The mobile drawer / sheet already animate for real, with transform
+ * only, in mobile.css (260ms, same curve).
+ */
+
+:root {
+  --motion-btn: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-panel: 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-dropdown: 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ---- Buttons, segmented controls, nav / search items, steppers ----
+ * 150ms, button curve, transform + opacity only. This covers the
+ * pressed scale(0.98) already declared in index.html / tokens.css, so
+ * a press now eases instead of snapping; no background-color or
+ * border-color transition is added, per section 5. */
+button,
+.orb-btn,
+.orb-segmented__btn,
+.segment-btn,
+.nav-item,
+.search-item,
+.orb-dropdown__item,
+.step-btn,
+.speed-preset,
+.collapse-btn,
+#nav-toggle {
+  transition:
+    transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ---- Switches: 150ms, button curve, transform only ----
+ * The index.html switch thumb already slides with transform
+ * (translateX(18px) when checked); the transition below makes that
+ * slide ease. The tokens.css switch knob, by contrast, moves with
+ * `left` (3px -> 21px). Animating `left` would be a layout-property
+ * animation, so instead of transitioning it, this file re-expresses
+ * the checked endpoint in transform terms: left stays at 3px and the
+ * knob travels the same 18px with translateX. The endpoint is pixel
+ * identical (3px + 18px = 21px); only the animated property changes,
+ * from left to transform. `left` itself is never transitioned. */
+.switch-thumb {
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.orb-switch::after,
+button[role="switch"]::after {
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.orb-switch[aria-checked="true"]::after,
+button[role="switch"][aria-checked="true"]::after {
+  left: 3px;
+  transform: translateY(-50%) translateX(18px);
+}
+
+/* ---- Panels: 260ms, expand curve, transform + opacity only ----
+ * Applies to every panel surface that can change transform / opacity
+ * (desktop panels, glass panels, floating panels, drawer, sheet,
+ * scrim). Desktop #nav-wrap / #info-wrap WIDTH is intentionally not
+ * listed here: width is a layout property (see the header note).
+ * On mobile, mobile.css (loaded later, more specific selectors)
+ * supplies the drawer / sheet / scrim transform rules and visibility
+ * delays; this file's 260ms values agree with them, so there is no
+ * duration conflict. */
+#nav,
+#info,
+.orb-panel,
+#info-sheet,
+#nav-scrim {
+  transition:
+    transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ---- Search dropdown: 180ms, expand curve, transform + opacity ----
+ * The transition covers opacity / transform changes; the entrance
+ * keyframe below is what actually plays when the dropdown leaves
+ * display:none (animations restart when an element becomes rendered,
+ * transitions do not run off a display toggle). The dropdown starts
+ * hidden, so this animation never plays on initial page load. */
+#search-dropdown,
+.orb-dropdown {
+  transition:
+    transform 180ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+#search-dropdown {
+  animation: orbital-dropdown-in 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes orbital-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Reduced motion: every CSS motion duration goes to zero ----
+ * Panels, drawers, sheets, dropdowns and buttons all land instantly
+ * at their final transform / opacity — the end state is identical,
+ * only the travel is removed. The !important durations (plus zero
+ * delay, so mobile.css's visibility hide-delay cannot linger) are
+ * deliberate here: mobile.css loads after this file, so a plain
+ * rule could lose to its later open-state transitions. The camera
+ * tween is NOT CSS and is handled separately in render.js
+ * (prefersReducedMotion() next to _updateGovernor: instant arrival
+ * at the same focus target, focus result never skipped). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+}

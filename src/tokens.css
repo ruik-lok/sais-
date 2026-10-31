@@ -1,0 +1,550 @@
+/* ORBITAL design tokens and generic component classes.
+ * Source: DESIGN_SYSTEM.md sections 1-4 (feature/visual-redesign).
+ * Scope of this file: color tokens, type scale, spacing / radius / shadow
+ * tokens, and generic component classes (button, switch, segmented
+ * control, glass panel, dropdown, warning bar, plus the section-4
+ * stepper / range / strip / time-bar helpers listed at the end).
+ * Not in this file, by ownership: page layout and markup wiring
+ * (desktop agent), mobile drawer / sheet / floating controller
+ * (mobile.css / mobile.js), motion curves and durations (motion.css),
+ * and any calculation logic. Transition declarations are therefore
+ * intentionally left to motion.css; states below are complete without
+ * them. All fills are flat solid colors.
+ *
+ * Phase 2 status (P1-15 / UI-02, gradual migration — NOT a rewrite):
+ * the :root variables above are authoritative and are what the real
+ * markup uses; the .orb-* component classes below are transitional.
+ * Step 1 only: nav group titles use .orb-group-title (see src/ui.js
+ * buildNav). All other components still use their inline classes
+ * (.segmented/.switch/.step-btn/.search-item, etc.); do NOT assume
+ * editing an .orb-* class below changes the page for those components
+ * yet, and do NOT delete the classes wholesale in this round — the
+ * button[role="switch"] selectors in the switch block genuinely match
+ * real markup, so a wholesale delete would change switch appearance
+ * without a browser check. Later steps migrate one component at a
+ * time with a computed-style comparison. */
+
+/* 1. Color tokens (DESIGN_SYSTEM.md section 1). */
+:root {
+  /* Deep-space surfaces. */
+  --space-0: #05070c;
+  --space-1: #0b0f16;
+  --space-2: #141b26;
+
+  /* Titanium greys: borders, separators, control bases. */
+  --titanium: #232d3b;
+  --titanium-hi: #3a4759;
+
+  /* Text. */
+  --text: #e8edf5;
+  --text-2: #a7b3c4;
+  --text-3: #6f7d90;
+
+  /* Gold: the only accent color, used sparingly. */
+  --gold: #c9a86a;
+  --gold-soft: rgba(201, 168, 106, 0.14);
+
+  /* Precision warning, kept inside the gold system. */
+  --warn-bg: #2a2108;
+  --warn-line: #c9a86a;
+  /* Phase 2 P2-29: warning text colour, tokenised (was hardcoded
+     in index.html in two places). Value unchanged. */
+  --warn-text: #ffe9b0;
+
+  /* Frosted glass. */
+  --glass: rgba(11, 15, 22, 0.72);
+  --glass-strong: rgba(11, 15, 22, 0.86);
+
+  /* Hairlines. */
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.14);
+
+  /* 2. Type. */
+  --font-sans: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+
+  /* 3. Spacing (4px unit), radius, shadow, control sizes. */
+  --pad-panel: 16px;
+  --gap-group: 16px;
+  --gap-control: 8px;
+  --gap-inline: 6px;
+  --radius-control: 10px;
+  --radius-panel: 16px;
+  --radius-sheet-top: 20px;
+  --radius-dropdown: 12px;
+  --shadow-lift: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --touch-min: 44px;
+  --btn-h: 40px;
+  --btn-compact-h: 36px;
+}
+
+/* 2. Type scale (DESIGN_SYSTEM.md section 2). */
+.orb-brand {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.2;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.orb-panel-title {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.orb-subtitle-en {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.orb-group-title {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 650;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.orb-body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.7;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.orb-aux {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.orb-micro {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+/* Tabular figures for distances, speeds and dates. */
+.orb-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 3. Spacing helpers. */
+.orb-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+}
+
+.orb-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-control);
+}
+
+.orb-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+
+/* 4. Button. Base: raised surface, hairline border, 10px radius.
+ * Hover raises the border and the fill (fill uses the existing
+ * titanium token, so no new color is invented). Pressed scales to
+ * 0.98. Focus uses a 2px neutral outer ring. The aria-pressed
+ * active state uses the gold selection fill with a thin gold border
+ * and leaves the text color unchanged. */
+.orb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-inline);
+  min-height: var(--btn-h);
+  padding: 0 16px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text);
+  background-color: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  user-select: none;
+}
+
+.orb-btn:hover {
+  border-color: var(--line-2);
+  background-color: var(--titanium);
+}
+
+.orb-btn:active {
+  transform: scale(0.98);
+}
+
+.orb-btn:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.orb-btn[aria-pressed="true"] {
+  background-color: var(--gold-soft);
+  border-color: var(--gold);
+  color: var(--text);
+}
+
+.orb-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Compact time-bar control: 36px visual height. Layout must still
+ * preserve a 44px hit area around it (for example via padding). */
+.orb-btn--compact {
+  min-height: var(--btn-compact-h);
+}
+
+/* 4. Switch. Markup: <button class="orb-switch" role="switch"
+ * aria-checked="true|false">. Track 40x22px, radius 11px, knob 16px.
+ * Off state is neutral grey; on state is a solid gold track with a
+ * dark knob for contrast. The knob is a CSS shape, not a character. */
+.orb-switch,
+button[role="switch"] {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: var(--titanium);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.orb-switch::after,
+button[role="switch"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--text);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.orb-switch:hover,
+button[role="switch"]:hover {
+  border-color: var(--titanium-hi);
+}
+
+.orb-switch[aria-checked="true"],
+button[role="switch"][aria-checked="true"] {
+  background-color: var(--gold);
+  border-color: var(--gold);
+}
+
+.orb-switch[aria-checked="true"]:hover,
+button[role="switch"][aria-checked="true"]:hover {
+  border-color: var(--gold);
+}
+
+.orb-switch[aria-checked="true"]::after,
+button[role="switch"][aria-checked="true"]::after {
+  left: 21px;
+  background-color: var(--space-0);
+}
+
+.orb-switch:focus-visible,
+button[role="switch"]:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* 4. Segmented control. Markup: container .orb-segmented holding
+ * buttons with aria-pressed on the active segment (or .is-active).
+ * The active segment uses the section-1 selection fill (gold-soft)
+ * with a thin gold border; see the delivery note on the reading of
+ * the section-4 wording for this control. */
+.orb-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  box-sizing: border-box;
+  background-color: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.orb-segmented__btn {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--btn-h);
+  padding: 0 16px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-2);
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.orb-segmented__btn:hover {
+  color: var(--text);
+}
+
+.orb-segmented__btn:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.orb-segmented__btn[aria-pressed="true"],
+.orb-segmented__btn.is-active {
+  background-color: var(--gold-soft);
+  border-color: var(--gold);
+  color: var(--text);
+}
+
+/* 4. Glass panel. Ordinary panels carry no shadow; only floating
+ * panels, dropdowns and sheets use the single lift shadow. */
+.orb-panel {
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--pad-panel);
+  box-sizing: border-box;
+  color: var(--text);
+}
+
+.orb-panel--strong {
+  background: var(--glass-strong);
+}
+
+.orb-panel--floating {
+  box-shadow: var(--shadow-lift);
+}
+
+/* Top radius for drawers and bottom sheets. */
+.orb-sheet-top {
+  border-top-left-radius: var(--radius-sheet-top);
+  border-top-right-radius: var(--radius-sheet-top);
+}
+
+/* Fallback where backdrop blur is unsupported: opaque surface. */
+@supports not (backdrop-filter: blur(1px)) {
+  .orb-panel,
+  .orb-panel--strong {
+    background: var(--space-1);
+  }
+}
+
+/* 4. Dropdown (search candidates). Glass panel, 12px radius, lift
+ * shadow, items at least 44px tall, highlighted item in the gold
+ * selection fill. Keyboard behavior stays in JavaScript. */
+.orb-dropdown {
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-dropdown);
+  box-shadow: var(--shadow-lift);
+  padding: 8px;
+  box-sizing: border-box;
+  color: var(--text);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .orb-dropdown {
+    background: var(--space-1);
+  }
+}
+
+.orb-dropdown__item {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding: 0 16px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.orb-dropdown__item:hover {
+  background-color: var(--space-2);
+}
+
+.orb-dropdown__item[aria-selected="true"],
+.orb-dropdown__item.is-highlight {
+  background-color: var(--gold-soft);
+  border-color: var(--gold);
+  color: var(--text);
+}
+
+.orb-dropdown__item:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* 4. Warning bar. Gold-system warning: dark gold-tinted fill with a
+ * gold hairline, no high-saturation red or yellow. */
+.orb-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-control);
+  padding: 12px 16px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+  background-color: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius-control);
+}
+
+/* Diamond marker: a rotated CSS square, not a character glyph. */
+.orb-warn-mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  background-color: var(--gold);
+  transform: rotate(45deg);
+}
+
+/* Plain-text mark style for markup that renders a "!" character. */
+.orb-warn-mark--text {
+  width: auto;
+  height: auto;
+  margin-top: 0;
+  background-color: transparent;
+  transform: none;
+  font-weight: 650;
+  color: var(--gold);
+}
+
+/* 4. Date stepper (custom, no native date input). Markup: stepper
+ * buttons carrying .orb-btn plus .orb-stepper__btn, with a read-only
+ * .orb-stepper__value between them. Stepper buttons meet the 44px
+ * touch target. */
+.orb-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-control);
+}
+
+.orb-stepper__btn {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0;
+}
+
+.orb-stepper__value {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: center;
+  user-select: none;
+}
+
+/* 4. Speed range slider: range semantics, fully custom look, no
+ * browser default slider appearance. Track 4px, thumb 18px round. */
+.orb-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--touch-min);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.orb-range::-webkit-slider-runnable-track {
+  height: 4px;
+  background-color: var(--titanium);
+  border-radius: 2px;
+}
+
+.orb-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background-color: var(--text);
+  border: 1px solid var(--line-2);
+}
+
+.orb-range::-moz-range-track {
+  height: 4px;
+  background-color: var(--titanium);
+  border-radius: 2px;
+}
+
+.orb-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: var(--text);
+  border: 1px solid var(--line-2);
+}
+
+.orb-range:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* 4. Collapsible-panel trigger strip: only a 40px strip remains
+ * when a desktop side panel is collapsed. */
+.orb-strip {
+  flex: none;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 4. Time controller container (layout and wiring belong to the
+ * desktop / mobile agents; this class only sets the row rhythm). */
+.orb-timebar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-control);
+}

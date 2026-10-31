@@ -1,0 +1,556 @@
+/* ORBITAL mobile layout (feature/visual-redesign, mobile agent ownership).
+ *
+ * Scope: ONLY the max-width:900px layout, plus the desktop guard that
+ * keeps the mobile-only containers hidden above 900px. This file never
+ * restyles the desktop layout and never touches calculation or rendering
+ * code. It is meant to be linked after the inline <style> in index.html
+ * and after src/tokens.css; the #app-scoped selectors below additionally
+ * outrank the old inline media-query rules (e.g. the 220px panel caps)
+ * even if load order changes.
+ *
+ * Hook contract (REDESIGN_PLAN.md section 1; all hooks are owned by the
+ * desktop agent's index.html work and may not exist yet):
+ *   #nav-toggle   - button that opens/closes the nav drawer
+ *   #nav-scrim    - drawer scrim, click closes the drawer
+ *   #info-sheet   - bottom-sheet container wrapping #info, class `sheet`
+ *   #sheet-handle - drag handle inside the sheet
+ *   #time-float   - floating time controller (hidden on desktop)
+ *   body[data-nav-open]          - drawer open (attribute presence;
+ *                                  value "false" is treated as closed)
+ *   body[data-sheet]             - collapsed | half | full
+ * Fallbacks when hooks are absent: #info itself (as a direct child of
+ * #app) is styled as the bottom sheet, and the desktop <footer> stays
+ * visible as a compact in-flow bar (it is hidden only once #time-float
+ * actually contains controls, via :has, so no time control is ever
+ * lost in the interim — an empty #time-float placeholder does not hide
+ * the footer).
+ *
+ * z-index scale (mobile only; nothing here may cover a key control):
+ *   scene canvas / #range-banner ............ <= 5 (existing)
+ *   bottom sheet (#info-sheet / #app > #info)  40
+ *   floating time controller (#time-float) ... 45 (above the sheet, so
+ *     it is never covered by sheet content; it docks just above the
+ *     sheet's current snap height, except in full-sheet state where
+ *     Phase 2 P1-13 hides it — see the full-state rule below)
+ *   drawer scrim (#nav-scrim) ............... 50 (modal over sheet/float)
+ *   nav drawer (#nav) ....................... 60
+ *   #nav-toggle while the drawer is open ..... 61 (stays tappable to
+ *     close; the header bar itself is not raised, only the button)
+ *
+ * Motion (DESIGN_SYSTEM.md section 5): transform / opacity only.
+ * Drawer / sheet / scrim: 260ms cubic-bezier(0.32, 0.72, 0, 1).
+ * Float buttons / second-row entrance: 150ms cubic-bezier(0.4, 0, 0.2, 1).
+ * prefers-reduced-motion collapses all of it to none (see the block at
+ * the end of this file); final positions are identical with or without
+ * motion. Sheet snap heights are realised with translateY, never by
+ * animating height: the sheet is always 85vh tall and is translated so
+ * that 96px (collapsed), 45vh (half) or 85vh (full) is visible.
+ *
+ * Honesty note (DESIGN_SYSTEM.md section 7): the footnote paragraph
+ * below #app is NOT hidden on mobile; it stays in document flow
+ * under the 100dvh app and remains reachable by scrolling (Phase 2
+ * P2-27 merged the former duplicate paragraph into this one; no
+ * honesty wording was removed).
+ */
+
+/* ---- Desktop guard: mobile-only containers stay hidden above 900px. ---- */
+#time-float,
+#nav-scrim {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  /* ---- Root overflow guard: no horizontal scrolling, ever. ---- */
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  #app,
+  #app header,
+  #app #scene,
+  #app #nav,
+  #app #info,
+  #info-sheet,
+  #app footer,
+  #time-float,
+  #nav-scrim {
+    max-width: 100vw;
+    min-width: 0;
+  }
+
+  /* Every container inside the app is capped at the viewport width. */
+  #app *,
+  #time-float *,
+  #info-sheet * {
+    max-width: 100vw;
+  }
+
+  #app header > *,
+  #app footer > * {
+    min-width: 0;
+  }
+
+  /* ---- App shell: 3D scene first, full viewport height.
+   * Explicit row placement matters: #nav-wrap is still an in-flow grid
+   * item (its child #nav is fixed, but the wrapper is not), so without
+   * placement it would steal the 1fr row and shrink the scene. Header,
+   * scene and footer take rows 1-3 explicitly; the collapsed #nav-wrap
+   * auto-places into an implicit 0-height row 4. ---- */
+  #app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  #app header {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  #app #scene {
+    grid-row: 2;
+    grid-column: 1;
+  }
+
+  #app footer {
+    grid-row: 3;
+    grid-column: 1;
+  }
+
+  /* Collapse the desktop nav wrapper to nothing on mobile. Its child
+   * #nav is position:fixed (viewport-containing, no transformed
+   * ancestor), so it is NOT clipped by this overflow:hidden box, while
+   * the in-flow desktop collapse strip inside the wrapper is. */
+  #app #nav-wrap {
+    width: 0;
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 0;
+    padding: 0;
+  }
+
+  /* A desktop-collapsed nav must not stay display:none when the mobile
+   * drawer opens. (Mobile media only; desktop behaviour untouched.) */
+  #app #nav-wrap.collapsed #nav {
+    display: block;
+  }
+
+  /* ---- Header: keep search, scale switch and fullscreen reachable. ---- */
+  #app header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  #app header .search-wrap {
+    flex: 1 1 220px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #app header .settings {
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  #app header button {
+    min-height: 44px;
+  }
+
+  #search {
+    min-height: 44px;
+  }
+
+  /* ---- 3D scene: the remaining viewport, never squeezed by panels. ---- */
+  #app #scene {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #app #scene canvas {
+    max-width: 100%;
+  }
+
+  #app #scene #range-banner {
+    max-width: calc(100vw - 24px);
+  }
+
+  /* ---- Left nav as a drawer (default closed). ---- */
+  #app #nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 60;
+    width: min(320px, 84vw);
+    max-width: 84vw;
+    max-height: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: var(--space-1, #0b0f16);
+    border-right: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+    border-top-right-radius: 20px;
+    border-bottom-right-radius: 20px;
+    box-shadow: var(--shadow-lift, 0 12px 32px rgba(0, 0, 0, 0.45));
+    transform: translateX(-105%);
+    visibility: hidden;
+    transition:
+      transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s linear 260ms;
+  }
+
+  #app #nav .nav-item {
+    min-height: 44px;
+  }
+
+  body[data-nav-open] #app #nav {
+    transform: translateX(0);
+    visibility: visible;
+    transition:
+      transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s;
+  }
+
+  /* A literal "false" value must never count as open. */
+  body[data-nav-open="false"] #app #nav {
+    transform: translateX(-105%);
+    visibility: hidden;
+    transition:
+      transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s linear 260ms;
+  }
+
+  /* Lock background scroll while the drawer is open; the drawer itself
+   * still scrolls (it has its own overflow-y). */
+  body[data-nav-open] {
+    overflow-y: hidden;
+  }
+
+  /* ---- Drawer scrim. ---- */
+  #nav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s linear 260ms;
+  }
+
+  body[data-nav-open] #nav-scrim {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition:
+      opacity 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s;
+  }
+
+  body[data-nav-open="false"] #nav-scrim {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* ---- Drawer toggle: 44px target, stays tappable above the scrim. ---- */
+  #nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  body[data-nav-open] #nav-toggle {
+    position: relative;
+    z-index: 61;
+  }
+
+  /* ---- Bottom sheet: collapsed 96px / half 45vh / full 85vh.
+   * Implemented as an 85vh-tall fixed panel translated with transform
+   * only (see the header comment); no height animation anywhere. ---- */
+  #info-sheet,
+  #app > #info {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    height: 85vh;
+    height: 85dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 20px 20px 0 0;
+    background: var(--glass-strong, rgba(11, 15, 22, 0.86));
+    backdrop-filter: blur(16px) saturate(1.1);
+    -webkit-backdrop-filter: blur(16px) saturate(1.1);
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+    border-bottom: none;
+    box-shadow: var(--shadow-lift, 0 12px 32px rgba(0, 0, 0, 0.45));
+    transform: translateY(calc(85vh - 96px));
+    transform: translateY(calc(85dvh - 96px));
+    transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* No data-sheet attribute (or an unknown value) falls back to the
+   * base rule above, i.e. collapsed. */
+  body[data-sheet="half"] #info-sheet,
+  body[data-sheet="half"] #app > #info {
+    transform: translateY(40vh);
+    transform: translateY(40dvh);
+  }
+
+  body[data-sheet="full"] #info-sheet,
+  body[data-sheet="full"] #app > #info {
+    transform: translateY(0);
+  }
+
+  /* Inside the sheet, #info-wrap is the flex row that must fill the
+   * sheet height; its desktop collapse strip is hidden on mobile (the
+   * sheet snap replaces it) and a desktop-collapsed wrap must not hide
+   * #info here. */
+  #info-sheet #info-wrap {
+    width: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+  }
+
+  #info-sheet #info-wrap .collapse-btn {
+    display: none;
+  }
+
+  #info-sheet #info-wrap.collapsed {
+    width: auto;
+  }
+
+  #info-sheet #info-wrap.collapsed #info {
+    display: block;
+  }
+
+  /* Sheet content scrolls inside the sheet; the bottom padding keeps
+   * the last content clear of the safe area (and, for the fallback
+   * sheet, of the floating controller docked above it). */
+  #info-sheet #info {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Phase 2 P2-24 (UI-06): panel inline links get a larger hit area on
+     narrow screens only — inline-block with 6px vertical / 8px
+     horizontal padding, instead of the desktop 0 2px text form. Desktop
+     panel layout is untouched. */
+  #info-sheet .crumb,
+  #info-sheet .moon-link {
+    display: inline-block;
+    padding: 6px 8px;
+  }
+
+  /* Phase 2 P2-30 (UI-12): events moved into the float get their own
+     vertical class (see src/time-float.js), never the flex row class,
+     so multi-event days stack vertically instead of flowing sideways. */
+  #time-float .time-float-events {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* Fallback when #info is not yet wrapped in #info-sheet: the panel
+   * itself is the sheet, so it scrolls directly. */
+  #app > #info {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ---- Sheet drag handle: 44px touch row, 5px grip pill centred. ---- */
+  #sheet-handle {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    height: 44px;
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Phase 2 P1-14: the handle is now a <button>; strip the generic
+       button box so only the grip pill shows, as before. */
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  #sheet-handle:active {
+    cursor: grabbing;
+  }
+
+  #sheet-handle::before {
+    content: "";
+    width: 36px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--titanium-hi, #3a4759);
+  }
+
+  #sheet-handle:focus-visible {
+    outline: 2px solid var(--text, #e8edf5);
+    outline-offset: -2px;
+  }
+
+  /* ---- Floating time controller (compact; second row collapsible).
+   * It always docks just above the sheet's current snap height, so it
+   * never covers sheet content and never sits over the scene centre. */
+  #time-float {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(108px + env(safe-area-inset-bottom, 0px));
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--glass, rgba(11, 15, 22, 0.72));
+    backdrop-filter: blur(16px) saturate(1.1);
+    -webkit-backdrop-filter: blur(16px) saturate(1.1);
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+    border-radius: 16px;
+    box-shadow: var(--shadow-lift, 0 12px 32px rgba(0, 0, 0, 0.45));
+  }
+
+  body[data-sheet="half"] #time-float {
+    bottom: calc(45vh + 12px);
+    bottom: calc(45dvh + 12px);
+  }
+
+  /* Phase 2 P1-13 (UI-03) decision: HIDE the float in full-sheet state.
+     The old rule docked it at bottom:85dvh+12px, leaving only ~15dvh-12px
+     above it — less than the float's own height — so its toggle/controls
+     overflowed the viewport. Alternatives rejected: top-clamping would
+     overlay the banner/scene top and still overlap the sheet (the float
+     is taller than the remaining 15dvh), and docking it into the sheet
+     top needs a structural change. Trade-off, stated honestly: in full
+     state the time controls are not reachable until the sheet leaves
+     full (drag the handle, or use the keyboard sheet button); full
+     state is a detail-reading state, and the handle button restores
+     access in one action. This is a CSS-rule fix only: the real
+     overflow amount at 390px is still UNVERIFIED and belongs to 2.8
+     (R4/B13), not claimed here. */
+  body[data-sheet="full"] #time-float {
+    display: none;
+  }
+
+  #time-float .time-float-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #time-float button {
+    min-height: 44px;
+    transition:
+      transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  #time-float button:active {
+    transform: scale(0.98);
+  }
+
+  /* Second row: hidden only when the controller explicitly reports
+   * collapsed (data-expanded="false", set by mobile.js when a toggle
+   * exists). With no toggle, or no data-expanded attribute, every row
+   * stays visible so no control is ever hidden without a way back. */
+  #time-float[data-expanded="false"] [data-time-row="second"],
+  #time-float[data-expanded="false"] .time-float-row--second,
+  #time-float[data-expanded="false"] .time-float-second,
+  #time-float[data-expanded="false"] .time-float-row + .time-float-row {
+    display: none;
+  }
+
+  #time-float[data-expanded="true"] [data-time-row="second"],
+  #time-float[data-expanded="true"] .time-float-row--second,
+  #time-float[data-expanded="true"] .time-float-second,
+  #time-float[data-expanded="true"] .time-float-row + .time-float-row {
+    animation: orbital-time-float-in 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes orbital-time-float-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ---- Desktop footer: compact in-flow bar until #time-float carries
+   * controls. The footer is hidden only once the floating controller
+   * actually contains a control (button / input / select), so the time
+   * bar never duplicates and never covers the scene centre — while an
+   * empty #time-float placeholder (the current desktop state) leaves
+   * the footer fully functional. Browsers without :has keep the footer
+   * visible: controls are duplicated, never lost. ---- */
+  #app footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  #app footer button {
+    min-height: 44px;
+  }
+
+  body:has(#time-float button, #time-float input, #time-float select)
+    #app footer {
+    display: none;
+  }
+
+  /* Opaque fallback where backdrop blur is unsupported. */
+  @supports not (backdrop-filter: blur(1px)) {
+    #info-sheet,
+    #app > #info,
+    #time-float {
+      background: var(--space-1, #0b0f16);
+    }
+  }
+}
+
+/* ---- Reduced motion: everything arrives instantly, same end state. ---- */
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  #app #nav,
+  #nav-scrim,
+  #info-sheet,
+  #app > #info,
+  #time-float,
+  #time-float button {
+    transition: none;
+    animation: none;
+  }
+}

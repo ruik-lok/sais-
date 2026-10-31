@@ -1,0 +1,11 @@
+# ORBITAL — ARCHITECTURE.md（Step 3 后的目标架构，细节见 INTERFACE_CONTRACTS.md）
+- 入口 index.html：Grid 布局，顶部搜索/设置，左侧导航，中央场景，右侧信息面板，底部时间条，全屏按钮。
+- astro.js：TT/TDB 时间、开普勒求解（带残差复核与非法输入抛错）、光行时、岁差；JPL 支 + 密切轨道支 + Horizons/SBDB 代理支（后者本轮若接不上则留未知）共用统一返回结构。
+- data.js：BODIES/MOONS 统一 schema，形状/反照率/环/轨道解元数据/accuracy 可空字段，卫星相位必须带历元，总数与已建模数分开。
+- render.js：PBR 材质、物理衰减光照、阴影、ACES 色调映射、泛光后期（条件启用）、共享几何、LOD 四维、setMode 全量缩放、相机最远距离动态适配、CDN fallback + package.json 依赖。
+- interaction.js：pick/focusTo/overview/focusParent/搜索联想与消歧，单一状态源在 main.js。
+- time.js：SimClock（TT 内部时间，非法日期 guard，日期回填，回到现在恢复正向）。
+- ui.js：选中全量渲染 + 模拟日增量更新，面包屑，母天体分组导航，可点击卫星，全屏与无障碍基线。
+- events.js：三维角距 + 极值 bracketing + 可信度分级，内行星不报冲日，高速不漏检。
+- main.js：时钟 → 位置重算（复用结果）→ 渲染 → 增量 UI；FPS governor 只降渲染不降精度。
+- 无后端：本轮仍为纯静态前端；Horizons/SBDB 服务端代理与 PostgreSQL/Redis 属于第二阶段托管部署，不在本轮静态版内谎称已实现。
