@@ -88,13 +88,21 @@ document.getElementById("date-input").addEventListener("change", (e) => {
 refreshTimeUI();
 
 // Events panel, refreshed when the simulated day changes.
+// innerHTML writes are throttled to ~4 Hz (performance): if the last
+// write was under 250 ms ago, lastEventDay is left untouched so the
+// next frame retries — the current day's events land at most 250 ms
+// late and are never dropped by the throttle. Positions are reused
+// from computePositions (detectEvents no longer re-solves 18 bodies).
 let lastEventDay = null;
+let lastEventsWriteMs = 0;
 function refreshEvents() {
-  const day = Math.floor(jdFromDate(clock.date));
-  if (day === lastEventDay) return;
-  lastEventDay = day;
   const jd = jdFromDate(clock.date);
-  const evs = detectEvents(jd);
+  const day = Math.floor(jd);
+  if (day === lastEventDay) return;
+  if (performance.now() - lastEventsWriteMs < 250) return;
+  lastEventDay = day;
+  lastEventsWriteMs = performance.now();
+  const evs = detectEvents(jd, positionsAU);
   const el = document.getElementById("events");
   el.innerHTML = evs.length
     ? evs.map(e => `<div>${e.body.zh} ${e.body.en}：${e.kind}（偏差 ${e.delta.toFixed(2)}°）</div>`).join("")
@@ -103,15 +111,49 @@ function refreshEvents() {
 }
 
 let last = performance.now();
+let rafId = null;
+let lastRenderedCamPos = null;
+let lastRenderedCamTarget = null;
+let lastRenderMs = 0;
+// Last user pointer/wheel interaction: while the user is dragging, the
+// camera is driven through controls.update() inside animate(), so a
+// static camera snapshot alone must not gate rendering.
+let lastInteractMs = 0;
+for (const type of ["pointerdown", "pointermove", "wheel", "touchstart"]) {
+  container.addEventListener(type, () => { lastInteractMs = performance.now(); }, { passive: true });
+}
+function scheduleLoop() {
+  if (rafId === null && !document.hidden) rafId = requestAnimationFrame(loop);
+}
 function loop(now) {
-  requestAnimationFrame(loop);
+  rafId = null;
+  if (document.hidden) return; // visibilitychange already cancelled us; do not reschedule
   const dt = Math.min((now - last) / 1000, 0.1); last = now;
   const prevDate = clock.date.getTime();
   clock.step();
   const simDaysDelta = (clock.date.getTime() - prevDate) / 86400000;
   const jd = jdFromDate(clock.date);
-  if (jd !== lastJd) { positionsAU = computePositions(jd); lastJd = jd; }
-  renderer.animate(dt, simDaysDelta, positionsAU);
+  const jdChanged = jd !== lastJd;
+  if (jdChanged) { positionsAU = computePositions(jd); lastJd = jd; }
+  // Idle rule: paused, simulated day unchanged, no camera tween, camera
+  // bit-static since the last render, no recent interaction, and no
+  // renderer change pending -> skip the render, except for a slow
+  // ~2 Hz repaint so deferred textures keep arriving while paused.
+  // Position state is never dropped: positionsAU/lastJd are updated
+  // above before any skip, and playing/tween/interaction re-enables
+  // full-rate rendering on the very next frame.
+  const cam = renderer.camera.position, tgt = renderer.controls.target;
+  const camStatic = lastRenderedCamPos !== null &&
+    cam.x === lastRenderedCamPos.x && cam.y === lastRenderedCamPos.y && cam.z === lastRenderedCamPos.z &&
+    tgt.x === lastRenderedCamTarget.x && tgt.y === lastRenderedCamTarget.y && tgt.z === lastRenderedCamTarget.z;
+  const idle = !clock.playing && !jdChanged && !renderer.tween && camStatic &&
+    !renderer.needsRender && (now - lastInteractMs > 300);
+  if (!idle || now - lastRenderMs >= 500) {
+    renderer.animate(dt, simDaysDelta, positionsAU);
+    lastRenderedCamPos = { x: cam.x, y: cam.y, z: cam.z };
+    lastRenderedCamTarget = { x: tgt.x, y: tgt.y, z: tgt.z };
+    lastRenderMs = now;
+  }
   // Info panel distance refresh (cheap, once per simulated day change).
   if (interaction.selectedId && Math.floor(jd) !== Math.floor(jdFromDate(new Date(prevDate)))) {
     const p = positionsAU[interaction.selectedId];
@@ -119,12 +161,22 @@ function loop(now) {
   }
   if (Math.floor(jd) !== Math.floor(jdFromDate(new Date(prevDate)))) refreshTimeUI();
   refreshEvents();
+  scheduleLoop();
 }
+// Pause the frame loop when the tab is hidden; resume on return.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+  } else {
+    last = performance.now(); // avoid a dt spike on return (also clamped above)
+    scheduleLoop();
+  }
+});
 window.addEventListener("resize", () => renderer.resize());
 positionsAU = computePositions(jdFromDate(clock.date));
 lastJd = jdFromDate(clock.date);
 refreshEvents();
-requestAnimationFrame(loop);
+scheduleLoop();
 
 // Keyboard: arrows adjust speed, space toggles play.
 window.addEventListener("keydown", (e) => {
