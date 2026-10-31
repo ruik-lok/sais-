@@ -31,6 +31,9 @@
   .nav-item:hover, .nav-item.active { background:var(--panel2); }
   #scene { position:relative; background:#020409; min-height:300px; }
   #scene canvas { display:block; width:100%; height:100%; }
+  /* RENDERING: CDN fallback notice (hidden until a load failure shows it). */
+  #cdn-fallback { position:absolute; top:12px; left:12px; right:12px; z-index:5; background:#3a1508; border:1px solid #a86a3a; border-radius:8px; padding:12px 14px; font-size:13px; line-height:1.7; }
+  #cdn-fallback strong { color:#ffb347; }
   footer { grid-column:1/-1; background:var(--panel); border-top:1px solid var(--line); padding:10px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 12px; cursor:pointer; }
   button:hover { border-color:var(--accent); }
@@ -70,7 +73,10 @@
     </div>
   </header>
   <aside id="nav" aria-label="天体导航"></aside>
-  <main id="scene" aria-label="3D 场景"></main>
+  <main id="scene" aria-label="3D 场景">
+    <!-- RENDERING: CDN fallback notice. Shown only when Three.js fails to load from CDN; without it the page would be silently blank. -->
+    <div id="cdn-fallback" hidden><strong>3D 场景未能加载：</strong>Three.js 未能从 CDN（cdn.jsdelivr.net，three@0.160.0）加载，请检查网络连接后刷新页面；离线环境下本页无法显示 3D 场景。</div>
+  </main>
   <aside id="info" aria-label="天体信息"></aside>
   <footer>
     <button id="play-btn">⏸ 暂停</button>
@@ -86,6 +92,32 @@
   </footer>
 </div>
 <p class="muted" style="padding:6px 14px;">位置为开普勒近似模型计算，非完整 Horizons DE441 星历；表面纹理为程序化生成，非实测影像。科学比例模式下天体按真实 AU / 半径显示，看起来很小是正确的。</p>
+<script>
+  // RENDERING: non-module fallback timer (covers CDN failure and browsers
+  // without importmap/module support): if no canvas appears, show the banner.
+  setTimeout(function () {
+    if (!document.querySelector("#scene canvas")) {
+      var el = document.getElementById("cdn-fallback");
+      if (el) el.hidden = false;
+    }
+  }, 15000);
+  document.addEventListener("DOMContentLoaded", function () {
+    var scene = document.getElementById("scene");
+    if (scene && window.MutationObserver) {
+      new MutationObserver(function () {
+        if (scene.querySelector("canvas")) { var el = document.getElementById("cdn-fallback"); if (el) el.hidden = true; }
+      }).observe(scene, { childList: true });
+    }
+  });
+</script>
+<script type="module">
+  // RENDERING: CDN probe — if three fails to import, main.js never runs;
+  // show the banner instead of leaving a silently blank page.
+  import("three").then(function () {}).catch(function () {
+    var el = document.getElementById("cdn-fallback");
+    if (el) el.hidden = false;
+  });
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
