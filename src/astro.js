@@ -26,25 +26,47 @@ export const DEG = Math.PI / 180;
 export function normDeg(x) { let v = x % 360; if (v < 0) v += 360; return v; }
 export function normRad(x) { let v = x % (2 * Math.PI); if (v < -Math.PI) v += 2 * Math.PI; if (v > Math.PI) v -= 2 * Math.PI; return v; }
 
-/** Solve Kepler's equation E - e*sin(E) = M (radians) by Newton iteration. */
+/**
+ * Solve Kepler's equation E - e*sin(E) = M (radians) by Newton iteration.
+ * Only 0 <= e < 1 is accepted. Illegal input (e >= 1, e < 0, NaN) throws
+ * an identifiable Error, and a failed convergence (residual check after
+ * the loop) also throws instead of returning a silent near-answer.
+ */
 export function solveKepler(M, e) {
+  if (!Number.isFinite(M)) throw new Error(`solveKepler: mean anomaly M must be finite (got ${M})`);
+  if (!Number.isFinite(e)) throw new Error(`solveKepler: eccentricity e must be finite (got ${e})`);
+  if (e < 0 || e >= 1) throw new Error(`solveKepler: eccentricity e must satisfy 0 <= e < 1 (got ${e}); hyperbolic/parabolic orbits are not supported`);
   const m = normRad(M);
-  if (e < 0.8) {
-    let E = m;
-    for (let i = 0; i < 50; i++) {
-      const d = (E - e * Math.sin(E) - m) / (1 - e * Math.cos(E));
-      E -= d;
-      if (Math.abs(d) < 1e-12) break;
+  let E = e < 0.8 ? m : Math.PI;
+  const iters = e < 0.8 ? 50 : 100;
+  for (let i = 0; i < iters; i++) {
+    const step = (E - e * Math.sin(E) - m) / (1 - e * Math.cos(E));
+    E -= step;
+    if (Math.abs(step) < 1e-12) break;
+  }
+  let residual = Math.abs(E - e * Math.sin(E) - m);
+  if (residual > 1e-9 || !Number.isFinite(E)) {
+    // Newton diverges for high eccentricity near M ≈ ±π (the old code
+    // silently returned garbage there — e.g. Halley, e = 0.968, near
+    // aphelion — because the derivative 1 - e*cos(E) collapses and a
+    // single step can throw E tens of radians off). Fall back to
+    // bisection, which is guaranteed: f(E) = E - e*sin(E) - m is
+    // strictly increasing (f' >= 1 - e > 0) and the root lies in
+    // [m - e, m + e] since |E - m| = |e*sin(E)| <= e.
+    let lo = m - e, hi = m + e;
+    const flo = lo - e * Math.sin(lo) - m; // <= 0 by construction
+    const fhi = hi - e * Math.sin(hi) - m; // >= 0 by construction
+    if (flo > 0 || fhi < 0) throw new Error(`solveKepler: bisection bracket failed for M=${M}, e=${e}`);
+    for (let i = 0; i < 200; i++) {
+      const mid = 0.5 * (lo + hi);
+      const fm = mid - e * Math.sin(mid) - m;
+      if (fm < 0) lo = mid; else hi = mid;
+      if (hi - lo < 1e-15) break;
     }
-    return E;
+    E = 0.5 * (lo + hi);
+    residual = Math.abs(E - e * Math.sin(E) - m);
   }
-  // High eccentricity: start from pi.
-  let E = Math.PI;
-  for (let i = 0; i < 100; i++) {
-    const d = (E - e * Math.sin(E) - m) / (1 - e * Math.cos(E));
-    E -= d;
-    if (Math.abs(d) < 1e-12) break;
-  }
+  if (residual > 1e-9) throw new Error(`solveKepler: failed to converge for M=${M}, e=${e} (residual ${residual})`);
   return E;
 }
 
